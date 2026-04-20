@@ -14,7 +14,6 @@ my-quartz-game/
 │   ├── triangle.png
 │   └── circle.png
 └── src/
-    ├── main.rs
     ├── lib.rs
     ├── constants.rs
     ├── preferences.rs
@@ -28,7 +27,7 @@ my-quartz-game/
         └── circle_obj.rs
 ```
 
-The `objects/` and `logic/` directories mirror each other one-to-one. Every object file in `objects/` has a matching logic file in `logic/`.
+This is a library-only crate. There is no `main.rs` and no `App` struct — `ramp::run!` in `lib.rs` is the entry point. Object files in `objects/` typically have a matching file in `logic/`, but `logic/` can also contain standalone files with no corresponding object.
 
 ---
 
@@ -154,22 +153,11 @@ Detects collision between circle and triangle, plays a sound, increments score.
     Fires whenever circle overlaps a solid object.
 
 ================================================================================
-  MAIN  (src/main.rs)
-================================================================================
-
-Always exactly this. Never changes between projects. No game logic lives here.
-
-  fn main()
-    #[cfg(not(target_arch = "wasm32"))]
-      main::maverick_main()
-
-================================================================================
   LIB  (src/lib.rs)
 ================================================================================
 
-Module declarations at the top. App struct and ramp::run! macro at the bottom.
-App::new is where the canvas is created, objects are set up, and logic is
-registered — the real entry point for game code.
+Module declarations at the top. ramp::run! at the bottom.
+No App struct. No main.rs. This is a library-only crate.
 
   Scene::new  CanvasMode::Landscape   16:9 virtual resolution (3840x2160)
 
@@ -181,7 +169,7 @@ registered — the real entry point for game code.
     logic::triangle_obj::register  attach triangle input + collision event
     logic::circle_obj::register    attach circle collision + sound logic
 
-  ramp::run! passes context and assets into App::new and starts the loop.
+  ramp::run! passes context and assets in and starts the loop.
 
 ================================================================================
   RESOURCES  (resources/)
@@ -193,7 +181,7 @@ All files loaded at runtime by path string. Never embedded in source.
   circle.png     sprite for the circle object
   sounds/
     bounce.ogg   played when circle collides with triangle
-    music.ogg    background music (started in main or a scene)
+    music.ogg    background music (started in a scene)
   fonts/
     JetBrainsMono-Regular.ttf   used for any HUD text objects
 ```
@@ -202,13 +190,14 @@ All files loaded at runtime by path string. Never embedded in source.
 
 ## `Cargo.toml`
 
-Add `quartz` as a dependency. The binary entry point is `src/main.rs`.
-
 ```toml
 [package]
 name    = "my-game"
 version = "0.1.0"
 edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 ramp   = { package = "ramp2", path = "../ramp" }
@@ -237,22 +226,9 @@ resources/
 
 ## `src/`
 
-### `main.rs`
-
-The binary entry point. Always exactly this — never changes between projects. No game logic lives here.
-
-```rust
-fn main() {
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        main::maverick_main()
-    }
-}
-```
-
 ### `lib.rs`
 
-Module declarations at the top, then the `App` struct and `ramp::run!` macro at the bottom. The `App::new` function is where the canvas is created, objects are set up, and logic is registered.
+Module declarations at the top, then `ramp::run!` at the bottom. No `App` struct, no `main.rs`. This is a library-only crate — `ramp::run!` is the entry point.
 
 ```rust
 pub mod constants;
@@ -260,31 +236,23 @@ pub mod preferences;
 pub mod objects;
 pub mod logic;
 
-use quartz::*;
-
-pub struct App;
-
-impl App {
-    pub fn new(context: &mut Context, assets: Assets) -> Scene {
-        let mut scene = Scene::new(context, CanvasMode::Landscape, 1);
-        let layer_id  = LayerId(0);
-
-        let cv = scene.get_layer_mut(layer_id).unwrap().canvas_mut();
-
-        // construct objects
-        objects::triangle_obj::setup(cv);
-        objects::circle_obj::setup(cv);
-
-        // register logic
-        logic::triangle_obj::register(cv);
-        logic::circle_obj::register(cv);
-
-        scene
-    }
-}
+use ramp::prelude::*;
 
 ramp::run! { |context: &mut Context, assets: Assets| {
-    App::new(context, assets)
+    let mut scene = Scene::new(context, CanvasMode::Landscape, 1);
+    let layer_id  = LayerId(0);
+
+    let cv = scene.get_layer_mut(layer_id).unwrap().canvas_mut();
+
+    // construct objects
+    objects::triangle_obj::setup(cv);
+    objects::circle_obj::setup(cv);
+
+    // register logic
+    logic::triangle_obj::register(cv);
+    logic::circle_obj::register(cv);
+
+    scene
 }}
 ```
 
@@ -340,7 +308,7 @@ pub mod circle_obj;
 ### `objects/triangle_obj.rs`
 
 ```rust
-use quartz::*;
+use ramp::prelude::*;
 use crate::constants::*;
 
 pub fn setup(cv: &mut Canvas) {
@@ -361,7 +329,7 @@ pub fn setup(cv: &mut Canvas) {
 ### `objects/circle_obj.rs`
 
 ```rust
-use quartz::*;
+use ramp::prelude::*;
 use crate::constants::*;
 
 pub fn setup(cv: &mut Canvas) {
@@ -384,7 +352,7 @@ pub fn setup(cv: &mut Canvas) {
 
 ## `src/logic/`
 
-**Behaviour only.** Each file registers `on_update` callbacks and `GameEvent` handlers for its matching object. No object construction here.
+**Behaviour only.** Each file registers `on_update` callbacks and `GameEvent` handlers. No object construction here. Most logic files correspond to an object file in `objects/`, but logic files can also be standalone — for things like input managers, game state machines, score systems, or any behaviour that isn't tied to a single object.
 
 ### `logic/mod.rs`
 
@@ -396,7 +364,7 @@ pub mod circle_obj;
 ### `logic/triangle_obj.rs`
 
 ```rust
-use quartz::*;
+use ramp::prelude::*;
 use crate::constants::*;
 
 pub fn register(cv: &mut Canvas) {
@@ -425,7 +393,7 @@ pub fn register(cv: &mut Canvas) {
 ### `logic/circle_obj.rs`
 
 ```rust
-use quartz::*;
+use ramp::prelude::*;
 
 pub fn register(cv: &mut Canvas) {
     cv.add_event(GameEvent::Collision, Target::tag("circle"));
@@ -443,8 +411,9 @@ pub fn register(cv: &mut Canvas) {
 ## Rules
 
 - `objects/` constructs — `logic/` behaves. Never mix the two.
-- One file per object type. `triangle_obj.rs` in `objects/` has exactly one counterpart in `logic/`.
+- Most object files have a matching logic file, but logic files do not need a corresponding object. Standalone logic files are fine for things like input managers, score systems, or game state machines.
 - `constants.rs` is for compile-time values. `preferences.rs` is for runtime/user-adjustable values.
-- `main.rs` is wiring only. If logic is creeping in, it belongs in `logic/`.
+- `lib.rs` is wiring only. If logic is creeping in, it belongs in `logic/`.
+- There is no `main.rs`. There is no `App` struct. `ramp::run!` is the entry point.
 - Assets live in `resources/`. Load them by path string at runtime — never embed binary assets in source files.
 - Write `design.txt` first. Every object, variable, and behaviour should be described there before the matching code is written.
