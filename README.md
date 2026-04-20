@@ -17,6 +17,9 @@ my-quartz-game/
     ├── lib.rs
     ├── constants.rs
     ├── preferences.rs
+    ├── my_quartz_game/
+    │   ├── mod.rs
+    │   └── ...
     ├── objects/
     │   ├── mod.rs
     │   ├── triangle_obj.rs
@@ -28,6 +31,8 @@ my-quartz-game/
 ```
 
 This is a library-only crate. There is no `main.rs` and no `App` struct — `ramp::run!` in `lib.rs` is the entry point. Object files in `objects/` typically have a matching file in `logic/`, but `logic/` can also contain standalone files with no corresponding object.
+
+The named folder (`my_quartz_game/` in the example above, named after the crate) is for internal types and helpers that don't belong in `objects/` or `logic/` — things like data models, state structs, parsers, or shared utilities. It is a submodule declared in `lib.rs` and accessed via `crate::<name>::`. The name always matches the crate name.
 
 ---
 
@@ -74,6 +79,16 @@ constants — these can be loaded from a config file or changed by the user.
 master_volume  f32   Overall volume multiplier. Default 1.0.
 music_volume   f32   Music channel multiplier. Default 0.8.
 sfx_volume     f32   Sound effects channel multiplier. Default 1.0.
+
+================================================================================
+  INTERNAL TYPES  (src/my_quartz_game/)
+================================================================================
+
+Submodule named after the crate. Holds types and helpers used by both
+objects/ and logic/ that don't belong in either. Declare files in
+my_quartz_game/mod.rs and import via crate::my_quartz_game::.
+
+  (empty for this example — add state structs, parsers, etc. here as needed)
 
 ================================================================================
   OBJECTS  (src/objects/)
@@ -294,6 +309,22 @@ impl Default for Preferences {
 
 ---
 
+## `src/<app-name>/`
+
+A submodule named after the crate. Holds internal types and helpers that don't belong in `objects/` or `logic/` — things like data models, state structs, parsers, ANSI processors, or any shared code that multiple logic or object files need to import. Declared in `lib.rs` as `pub mod <app_name>` and accessed elsewhere as `crate::<app_name>::`.
+
+### `<app-name>/mod.rs`
+
+Re-exports the submodule's public surface. Internal files are declared here.
+
+```rust
+pub mod state;
+pub mod parser;
+// etc.
+```
+
+---
+
 ## `src/objects/`
 
 **Scene construction only.** Each file builds `GameObject`s and adds them to the canvas. No event handlers, no per-tick logic.
@@ -412,6 +443,7 @@ pub fn register(cv: &mut Canvas) {
 
 - `objects/` constructs — `logic/` behaves. Never mix the two.
 - Most object files have a matching logic file, but logic files do not need a corresponding object. Standalone logic files are fine for things like input managers, score systems, or game state machines.
+- The named `<app-name>/` folder holds internal types and helpers shared across the crate. Name it after the crate. If a type is only used in one file, keep it there — only move it here when two or more files need it.
 - `constants.rs` is for compile-time values. `preferences.rs` is for runtime/user-adjustable values.
 - `lib.rs` is wiring only. If logic is creeping in, it belongs in `logic/`.
 - There is no `main.rs`. There is no `App` struct. `ramp::run!` is the entry point.
